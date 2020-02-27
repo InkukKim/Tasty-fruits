@@ -1,0 +1,79 @@
+
+lm_test_interaction <- function(simNum, N, b1, b2, b3, b0=0, x1m=0, x1sd=1,
+                                x2m=0, x2sd=1) {
+  
+  x1 <- rnorm(N, x1m, x1sd)
+  x2 <- rnorm(N, x2m, x2sd)
+  yvar <- sqrt(1 - b1^2 - b2^2 - b3^2)  # residual variance
+  y <- rnorm(N, b0 + b1*x1 + b2*x2 + b3*x1*x2, yvar)
+  model <- lm(y ~ x1 * x2)
+  
+  # pull output from model (two main effects and interaction)
+  est_x1 <- coef(summary(model))['x1', 'Estimate']
+  p_x1 <- coef(summary(model))['x1', 'Pr(>|t|)']
+  sig_x1 <- p_x1 < .05
+  est_x2 <- coef(summary(model))['x2', 'Estimate']
+  p_x2 <- coef(summary(model))['x2', 'Pr(>|t|)']
+  sig_x2 <- p_x2 < .05
+  est_int <- coef(summary(model))['x1:x2', 'Estimate']
+  p_int <- coef(summary(model))['x1:x2', 'Pr(>|t|)']
+  sig_int <- p_int < .05
+  
+  return(c(est_x1=est_x1, p_x1=p_x1, sig_x1=sig_x1, est_x2=est_x2, p_x2=p_x2,
+           sig_x2=sig_x2, est_int=est_int, p_int=p_int, sig_int=sig_int))
+}
+
+# varying N at 200 and 300; setting coefficient of x1 = .15, coefficient of
+# x2 = 0, and coefficien of interaction = .3
+power_lm_int <- grid_search(lm_test_interaction, params=list(N=c(200, 300)),
+                            n.iter=5000, output='data.frame', b1=.15, b2=0, b3=.3, parallel='snow', ncpus=4)
+results(power_lm_int) %>%
+  group_by(N.test) %>%
+  summarise(
+    power_x1=mean(sig_x1),
+    power_x2=mean(sig_x2),
+    power_int=mean(sig_int))
+
+lm_test_simple <- function(simNum, N, b1, b2, b3, b0=0, x1m=0, x1sd=1, x2m=0, x2sd=1) {
+  x1 <- rnorm(N, x1m, x1sd)
+  x2 <- rnorm(N, x2m, x2sd)
+  yvar <- sqrt(1 - b1^2 - b2^2 - b3^2)
+  y <- rnorm(N, b0 + b1*x1 + b2*x2 + b3*x1*x2, yvar)
+  model <- lm(y ~ x1 * x2)  # here is the original model
+  
+  est_int <- coef(summary(model))['x1:x2', 'Estimate']
+  p_int <- coef(summary(model))['x1:x2', 'Pr(>|t|)']
+  sig_int <- p_int < .05
+  
+  # calculate x1 at +/- 1 SD, to look at simple effects
+  x1minus1sd <- x1 - mean(x1) + sd(x1)
+  x1plus1sd <- x1 - mean(x1) - sd(x1)
+  
+  # new models to examine simple effects
+  model2 <- lm(y ~ x1minus1sd * x2)
+  model3 <- lm(y ~ x1plus1sd * x2)
+  
+  # test effect of x2 when x1 is at +/- 1 SD
+  est_x2_minus1 <- coef(summary(model2))['x2', 'Estimate']
+  p_x2_minus1 <- coef(summary(model2))['x2', 'Pr(>|t|)']
+  sig_x2_minus1 <- p_x2_minus1 < .05
+  
+  est_x2_plus1 <- coef(summary(model3))['x2', 'Estimate']
+  p_x2_plus1 <- coef(summary(model3))['x2', 'Pr(>|t|)']
+  sig_x2_plus1 <- p_x2_plus1 < .05
+  
+  return(c(est_int=est_int, p_int=p_int, sig_int=sig_int,
+           est_x2_minus1=est_x2_minus1, p_x2_minus1=p_x2_minus1,
+           sig_x2_minus1=sig_x2_minus1, est_x2_plus1=est_x2_plus1,
+           p_x2_plus1=p_x2_plus1, sig_x2_plus1=sig_x2_plus1))
+}
+
+power_lm_simple <- grid_search(lm_test_simple, params=list(N=c(200, 300)),
+                               n.iter=5000, output='data.frame', b1=.15, b2=0, b3=.3, parallel='snow', ncpus=4)
+results(power_lm_simple) %>%
+  group_by(N.test) %>%
+  summarise(
+    power_x2_minus1=mean(sig_x2_minus1),
+    power_x2_plus1=mean(sig_x2_plus1))
+
+

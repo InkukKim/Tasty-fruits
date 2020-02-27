@@ -1,0 +1,18 @@
+library(readr)
+library(car)
+library(effsize)
+library(psych)
+library(Hmisc)
+library(haven)
+library(QuantPsyc)
+
+df <- read_sav("Data/Climate Study 1.sav")
+
+a <- lm(liking ~ pol*past,df)
+lm.beta(a)
+summary(a,standardized = TRUE)
+
+
+b <- lm(envatt ~ pol*past,df)
+lm.beta(b)
+
